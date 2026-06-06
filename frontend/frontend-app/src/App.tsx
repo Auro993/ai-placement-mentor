@@ -20,6 +20,7 @@ import Chat from './pages/Chat';
 import Resume from './pages/Resume';
 import MockInterview from './pages/MockInterview';
 import Profile from './pages/Profile';
+import CompanyDetails from './pages/CompanyDetails';
 
 
 
@@ -42,6 +43,7 @@ function App() {
                 <Route path="/interview" element={<MockInterview />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/roadmap" element={<Roadmap />} />
+                <Route path="/companies/:id" element={<CompanyDetails />} />
 <Route path="/companies" element={<Companies />} />
 <Route path="/coding" element={<Coding />} />
 <Route path="/cover-letter" element={<CoverLetter />} />
