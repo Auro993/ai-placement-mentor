@@ -253,7 +253,7 @@ def analyze_answer():
         return jsonify(fallback)
 
 # =====================================================
-# NEW: ROADMAP AI ENDPOINT
+# ROADMAP AI ENDPOINT
 # =====================================================
 @app.route("/api/roadmap/generate", methods=["POST"])
 def generate_roadmap():
@@ -313,7 +313,6 @@ Make it practical, actionable, and personalized to {role}. Use real YouTube link
         
     except Exception as e:
         print(f"❌ Roadmap AI Error: {e}")
-        # Return fallback roadmap
         fallback_roadmap = {
             "weeks": [
                 {"week": 1, "title": "DSA Fundamentals", "tasks": [
@@ -339,10 +338,83 @@ Make it practical, actionable, and personalized to {role}. Use real YouTube link
         return jsonify(fallback_roadmap)
 
 # =====================================================
+# COVER LETTER GENERATOR AI ENDPOINT (NEW)
+# =====================================================
+@app.route("/api/cover-letter/generate", methods=["POST"])
+def generate_cover_letter():
+    try:
+        data = request.json
+        user_name = data.get('userName', 'Candidate')
+        company_name = data.get('companyName', '')
+        job_title = data.get('jobTitle', '')
+        skills = data.get('skills', '')
+        experience = data.get('experience', '')
+        achievements = data.get('achievements', '')
+        tone = data.get('tone', 'professional')
+        
+        if not company_name or not job_title:
+            return jsonify({"error": "Company name and job title are required"}), 400
+        
+        prompt = f"""Write a {tone} cover letter for:
+
+Name: {user_name}
+Position: {job_title}
+Company: {company_name}
+Skills: {skills if skills else 'Not specified'}
+Experience: {experience if experience else 'Not specified'}
+Key Achievements: {achievements if achievements else 'Not specified'}
+
+Requirements:
+- Write a professional, {tone} cover letter
+- Highlight relevant skills and achievements
+- Show enthusiasm for {company_name}
+- Keep it concise but impactful
+- Include placeholders for date and signature
+
+Format it as a proper business letter."""
+        
+        print(f"📝 Generating {tone} cover letter for {job_title} at {company_name}")
+        
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        
+        return jsonify({"coverLetter": response.text})
+        
+    except Exception as e:
+        print(f"❌ Cover Letter Error: {e}")
+        # Return fallback cover letter
+        fallback_letter = f"""
+{data.get('date', 'Date')}
+
+Hiring Manager
+{data.get('companyName', '[Company Name]')}
+
+Subject: Application for {data.get('jobTitle', '[Position]')} position
+
+Dear Hiring Manager,
+
+I am writing to express my strong interest in the {data.get('jobTitle', '[Position]')} position at {data.get('companyName', '[Company Name]')}.
+
+{data.get('skills', 'With my relevant skills and experience')}, I am confident that I would be a valuable addition to your team.
+
+I look forward to the opportunity to discuss how my skills align with your company's goals.
+
+Sincerely,
+{data.get('userName', 'Your Name')}
+"""
+        return jsonify({"coverLetter": fallback_letter})
+
+# =====================================================
 # START RUNTIME
 # =====================================================
 if __name__ == "__main__":
     print("=" * 60)
     print("🤖 JobGenie Server Initializing Execution...")
+    print("=" * 60)
+    print("📝 Available Endpoints:")
+    print("   - /api/chat/send")
+    print("   - /api/interview/generate-question")
+    print("   - /api/interview/analyze")
+    print("   - /api/roadmap/generate")
+    print("   - /api/cover-letter/generate (NEW)")
     print("=" * 60)
     app.run(host="0.0.0.0", port=5001, debug=True)

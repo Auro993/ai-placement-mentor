@@ -19,12 +19,15 @@ import {
   FiPrinter,
   FiAlertTriangle,
   FiInfo,
-  FiCpu
+  FiCpu,
+  FiCopy
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = 'http://localhost:8080/api';
+const AI_SERVICE = 'http://localhost:5001';
 
 interface ResumeItem {
   id: number;
@@ -41,7 +44,6 @@ interface Template {
   color: string;
 }
 
-// New Advanced Analysis Types (Jobscan-style)
 interface KeywordMatch {
   keyword: string;
   found: boolean;
@@ -99,7 +101,6 @@ interface AdvancedAnalysisData {
   atsDetection: ATSDetection;
 }
 
-// Basic Analysis Type (for backward compatibility)
 interface BasicAnalysisData {
   atsScore: number;
   foundKeywords: string[];
@@ -110,7 +111,9 @@ interface BasicAnalysisData {
 }
 
 export default function Resume() {
-  // State variables
+  const { user } = useAuth();
+  const { success, error } = useToast();
+  
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -126,6 +129,16 @@ export default function Resume() {
   const [activeTab, setActiveTab] = useState<'upload' | 'builder' | 'latex' | 'cover'>('upload');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  
+  // Cover Letter AI states
+  const [isGeneratingLetter, setIsGeneratingLetter] = useState(false);
+  const [coverLetter, setCoverLetter] = useState({
+    company: '',
+    position: '',
+    skills: '',
+    tone: 'professional',
+    generatedLetter: ''
+  });
   
   // Resume Builder state
   const [builderForm, setBuilderForm] = useState({
@@ -175,24 +188,12 @@ Your professional summary here...
 \\end{itemize}
 
 \\end{document}`);
-  
-  // Cover Letter state
-  const [coverLetter, setCoverLetter] = useState({
-    company: '',
-    position: '',
-    skills: '',
-    generatedLetter: ''
-  });
-  
-  const { success, error } = useToast();
 
-  // Fetch data on load
   useEffect(() => {
     fetchResumes();
     fetchTemplates();
   }, []);
 
-  // Fetch all resumes
   const fetchResumes = async () => {
     try {
       const response = await fetch(`${API_BASE}/resume/all`);
@@ -205,7 +206,6 @@ Your professional summary here...
     }
   };
 
-  // Fetch templates
   const fetchTemplates = async () => {
     try {
       const response = await fetch(`${API_BASE}/resume/templates`);
@@ -218,7 +218,6 @@ Your professional summary here...
     }
   };
 
-  // Upload resume
   const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file && file.type === 'application/pdf') {
@@ -263,7 +262,6 @@ Your professional summary here...
     }
   };
 
-  // Basic Analyze resume (Keyword matching only)
   const analyzeResume = async () => {
     if (!targetRole) {
       error('Please enter your target role');
@@ -304,7 +302,6 @@ Your professional summary here...
     }
   };
 
-  // Advanced Analyze resume (Jobscan-style full analysis)
   const analyzeResumeAdvanced = async () => {
     if (!targetRole) {
       error('Please enter your target role');
@@ -333,7 +330,7 @@ Your professional summary here...
         setAtsScore(data.finalScore);
         setAdvancedAnalysis(data);
         setShowResults(true);
-        success(`Advanced analysis complete! Your Jobscan-style score is ${data.finalScore}/100`);
+        success(`Advanced analysis complete! Your score is ${data.finalScore}/100`);
       } else {
         error(data.error || 'Advanced analysis failed');
       }
@@ -345,7 +342,6 @@ Your professional summary here...
     }
   };
 
-  // Delete resume
   const deleteResume = async (id: number) => {
     try {
       const response = await fetch(`${API_BASE}/resume/${id}`, {
@@ -369,7 +365,6 @@ Your professional summary here...
     }
   };
 
-  // Download resume
   const downloadResume = async (id: number, fileName: string) => {
     try {
       const response = await fetch(`${API_BASE}/resume/download/${id}`);
@@ -393,7 +388,6 @@ Your professional summary here...
     }
   };
 
-  // Save built resume
   const saveBuiltResume = async () => {
     if (!selectedTemplate) {
       error('Please select a template');
@@ -439,7 +433,6 @@ Your professional summary here...
     }
   };
 
-  // Save LaTeX content
   const saveLatexContent = async () => {
     try {
       const response = await fetch(`${API_BASE}/resume/latex/save`, {
@@ -462,31 +455,75 @@ Your professional summary here...
     }
   };
 
-  // Generate cover letter
-  const generateCoverLetter = () => {
+  // AI Cover Letter Generation
+  const generateAICoverLetter = async () => {
     if (!coverLetter.company || !coverLetter.position) {
       error('Please enter company name and position');
       return;
     }
     
-    const generated = `Dear Hiring Manager,
-
-I am writing to express my strong interest in the ${coverLetter.position} position at ${coverLetter.company}.
-
-With my expertise in ${coverLetter.skills || 'relevant technologies'}, I am confident that I would be a valuable addition to your team. I have successfully delivered multiple projects and am passionate about continuous learning and innovation.
-
-Throughout my career, I have developed strong problem-solving abilities and excellent communication skills. I am particularly drawn to ${coverLetter.company} because of your innovative approach and industry leadership.
-
-I look forward to the opportunity to discuss how my skills and experience align with ${coverLetter.company}'s goals.
-
-Sincerely,
-[Your Name]`;
+    setIsGeneratingLetter(true);
     
-    setCoverLetter({ ...coverLetter, generatedLetter: generated });
-    success('Cover letter generated!');
+    try {
+      const response = await fetch(`${AI_SERVICE}/api/cover-letter/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userName: user?.name || 'Candidate',
+          companyName: coverLetter.company,
+          jobTitle: coverLetter.position,
+          skills: coverLetter.skills,
+          tone: coverLetter.tone
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.coverLetter) {
+        setCoverLetter({ ...coverLetter, generatedLetter: data.coverLetter });
+        success('AI cover letter generated successfully!');
+      } else {
+        setCoverLetter({ ...coverLetter, generatedLetter: generateFallbackLetter() });
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      setCoverLetter({ ...coverLetter, generatedLetter: generateFallbackLetter() });
+      error('Using fallback generator');
+    } finally {
+      setIsGeneratingLetter(false);
+    }
   };
 
-  // Save cover letter
+  const generateFallbackLetter = () => {
+    return `
+${new Date().toLocaleDateString()}
+
+Hiring Manager
+${coverLetter.company || '[Company Name]'}
+
+Subject: Application for ${coverLetter.position || '[Position]'} position
+
+Dear Hiring Manager,
+
+I am writing to express my strong interest in the ${coverLetter.position || '[Position]'} position at ${coverLetter.company || '[Company Name]'}.
+
+${coverLetter.skills ? `With my expertise in ${coverLetter.skills}, ` : ''}I am confident that I would be a valuable addition to your team. I have successfully delivered multiple projects and am passionate about continuous learning and innovation.
+
+Throughout my career, I have developed strong problem-solving abilities and excellent communication skills. I am particularly drawn to ${coverLetter.company || 'your company'} because of your innovative approach and industry leadership.
+
+I look forward to the opportunity to discuss how my skills and experience align with ${coverLetter.company || 'your company'}'s goals.
+
+Sincerely,
+${user?.name || 'Your Name'}
+    `;
+  };
+
+  const copyToClipboard = async () => {
+    if (!coverLetter.generatedLetter) return;
+    await navigator.clipboard.writeText(coverLetter.generatedLetter);
+    success('Copied to clipboard!');
+  };
+
   const saveCoverLetter = async () => {
     if (!coverLetter.generatedLetter) {
       error('Please generate a cover letter first');
@@ -536,7 +573,7 @@ Sincerely,
           { id: 'upload', label: '📄 Analyze Resume', icon: FiTarget },
           { id: 'builder', label: '🛠️ Resume Builder', icon: FiEdit3 },
           { id: 'latex', label: '📝 LaTeX Editor', icon: FiCode },
-          { id: 'cover', label: '✉️ Cover Letter', icon: FiMail },
+          { id: 'cover', label: '✉️ AI Cover Letter', icon: FiMail },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -595,7 +632,6 @@ Sincerely,
                     />
                   </div>
                   
-                  {/* Job Description input for advanced analysis */}
                   <label className="block text-sm font-medium mb-2 text-white/70 mt-4">Job Description (Optional - for advanced analysis)</label>
                   <textarea
                     placeholder="Paste job description here for more accurate ATS score..."
@@ -626,7 +662,7 @@ Sincerely,
                 </div>
               </div>
 
-              {/* Results Panel - Basic Analysis */}
+              {/* Results Panels */}
               <AnimatePresence>
                 {showResults && !useAdvancedMode && analysisData && (
                   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
@@ -635,480 +671,119 @@ Sincerely,
                       <span className="px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-400">Keyword Matching</span>
                     </div>
                     
-                    {/* Score Circle */}
                     <div className="flex items-center gap-8 mb-6">
                       <div className="relative w-32 h-32">
                         <svg className="w-32 h-32 transform -rotate-90">
                           <circle cx="64" cy="64" r="58" stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="none"/>
-                          <circle 
-                            cx="64" cy="64" r="58" 
-                            stroke="url(#gradient)" 
-                            strokeWidth="8" 
-                            fill="none"
-                            strokeDasharray={`${analysisData.atsScore * 3.64} 364`}
-                            className="transition-all duration-1000"
-                          />
-                          <defs>
-                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                              <stop offset="0%" stopColor="#06b6d4"/>
-                              <stop offset="100%" stopColor="#a855f7"/>
-                            </linearGradient>
-                          </defs>
+                          <circle cx="64" cy="64" r="58" stroke="url(#gradient)" strokeWidth="8" fill="none" strokeDasharray={`${analysisData.atsScore * 3.64} 364`} className="transition-all duration-1000"/>
+                          <defs><linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#06b6d4"/><stop offset="100%" stopColor="#a855f7"/></linearGradient></defs>
                         </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-3xl font-bold">{analysisData.atsScore}</span>
-                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center"><span className="text-3xl font-bold">{analysisData.atsScore}</span></div>
                       </div>
                       <div>
                         <p className="text-lg font-semibold">ATS Score</p>
-                        <p className="text-white/60 text-sm">
-                          {analysisData.atsScore >= 80 ? '🎉 Excellent! Your resume is well-optimized!' :
-                           analysisData.atsScore >= 60 ? '👍 Good! Some improvements needed.' :
-                           '⚠️ Needs improvement. Review suggestions below.'}
-                        </p>
-                        <p className="text-xs text-white/40 mt-1">
-                          Matched {analysisData.foundKeywords?.length || 0}/{analysisData.totalKeywords} keywords
-                        </p>
+                        <p className="text-white/60 text-sm">{analysisData.atsScore >= 80 ? '🎉 Excellent!' : analysisData.atsScore >= 60 ? '👍 Good!' : '⚠️ Needs improvement'}</p>
+                        <p className="text-xs text-white/40 mt-1">Matched {analysisData.foundKeywords?.length || 0}/{analysisData.totalKeywords} keywords</p>
                       </div>
                     </div>
 
-                    {/* Found Keywords */}
                     {analysisData.foundKeywords && analysisData.foundKeywords.length > 0 && (
-                      <div className="mb-6">
-                        <h3 className="font-semibold mb-3 flex items-center gap-2">
-                          <FiCheckCircle className="text-green-400" />
-                          Found Keywords ({analysisData.foundKeywords.length})
-                        </h3>
-                        <div className="flex flex-wrap gap-2">
-                          {analysisData.foundKeywords.map((kw: string, i: number) => (
-                            <span key={i} className="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm">
-                              ✓ {kw}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                      <div className="mb-6"><h3 className="font-semibold mb-3 flex items-center gap-2"><FiCheckCircle className="text-green-400" /> Found Keywords ({analysisData.foundKeywords.length})</h3><div className="flex flex-wrap gap-2">{analysisData.foundKeywords.map((kw, i) => (<span key={i} className="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm">✓ {kw}</span>))}</div></div>
                     )}
 
-                    {/* Missing Keywords */}
                     {analysisData.missingKeywords && analysisData.missingKeywords.length > 0 && (
-                      <div className="mb-6">
-                        <h3 className="font-semibold mb-3 flex items-center gap-2">
-                          <FiTarget className="text-red-400" />
-                          Missing Keywords ({analysisData.missingKeywords.length})
-                        </h3>
-                        <div className="flex flex-wrap gap-2">
-                          {analysisData.missingKeywords.map((kw: string, i: number) => (
-                            <span key={i} className="px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm">
-                              + {kw}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                      <div className="mb-6"><h3 className="font-semibold mb-3 flex items-center gap-2"><FiTarget className="text-red-400" /> Missing Keywords ({analysisData.missingKeywords.length})</h3><div className="flex flex-wrap gap-2">{analysisData.missingKeywords.map((kw, i) => (<span key={i} className="px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm">+ {kw}</span>))}</div></div>
                     )}
 
-                    {/* Suggestions */}
                     {analysisData.suggestions && analysisData.suggestions.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold mb-3 flex items-center gap-2">
-                          <FiZap className="text-cyan-400" />
-                          Suggestions for {targetRole}
-                        </h3>
-                        <ul className="space-y-2 text-white/70 text-sm">
-                          {analysisData.suggestions.map((suggestion: string, i: number) => (
-                            <li key={i}>📌 {suggestion}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      <div><h3 className="font-semibold mb-3 flex items-center gap-2"><FiZap className="text-cyan-400" /> Suggestions for {targetRole}</h3><ul className="space-y-2 text-white/70 text-sm">{analysisData.suggestions.map((suggestion, i) => (<li key={i}>📌 {suggestion}</li>))}</ul></div>
                     )}
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Results Panel - Advanced Analysis  */}
               <AnimatePresence>
                 {showResults && useAdvancedMode && advancedAnalysis && (
                   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                    {/* Main Score Card */}
-                    <div className="glass-card p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-semibold">📊 Comprehensive ATS Analysis</h2>
-                        <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400">Full Analysis</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-8 mb-6">
-                        <div className="relative w-32 h-32">
-                          <svg className="w-32 h-32 transform -rotate-90">
-                            <circle cx="64" cy="64" r="58" stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="none"/>
-                            <circle 
-                              cx="64" cy="64" r="58" 
-                              stroke="url(#gradient2)" 
-                              strokeWidth="8" 
-                              fill="none"
-                              strokeDasharray={`${advancedAnalysis.finalScore * 3.64} 364`}
-                              className="transition-all duration-1000"
-                            />
-                            <defs>
-                              <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#06b6d4"/>
-                                <stop offset="100%" stopColor="#a855f7"/>
-                              </linearGradient>
-                            </defs>
-                          </svg>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-3xl font-bold">{advancedAnalysis.finalScore}</span>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-lg font-semibold">Overall ATS Score</p>
-                          <p className="text-white/60 text-sm">
-                            {advancedAnalysis.finalScore >= 80 ? '🎉 Excellent! Your resume is highly optimized!' :
-                             advancedAnalysis.finalScore >= 60 ? '👍 Good! Minor improvements needed.' :
-                             '⚠️ Needs improvement. Review all sections below.'}
-                          </p>
-                          <p className="text-xs text-white/40 mt-1">
-                            Based on keywords, formatting, sections, content, and ATS compatibility
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 1. Keyword Analysis */}
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold mb-4 flex items-center gap-2">
-                        <FiTarget className="text-cyan-400" />
-                        1. Keyword & Skills Analysis
-                        <span className="text-xs text-white/40 ml-2">(40% of score)</span>
-                      </h3>
-                      
-                      <div className="mb-4">
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>Hard Skills Match</span>
-                          <span className="text-cyan-400">{advancedAnalysis.keywordAnalysis?.foundHardSkills || 0}/{advancedAnalysis.keywordAnalysis?.totalHardSkills || 0}</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2">
-                          <div className="bg-gradient-to-r from-cyan-500 to-purple-500 h-2 rounded-full" 
-                               style={{ width: `${((advancedAnalysis.keywordAnalysis?.foundHardSkills || 0) / (advancedAnalysis.keywordAnalysis?.totalHardSkills || 1)) * 100}%` }} />
-                        </div>
-                      </div>
-                      
-                      {advancedAnalysis.keywordAnalysis?.hardSkillsMatch && (
-                        <div className="grid grid-cols-2 gap-2 mt-3">
-                          {advancedAnalysis.keywordAnalysis.hardSkillsMatch.slice(0, 8).map((skill, i) => (
-                            <div key={i} className={`flex items-center justify-between p-2 rounded-lg text-sm ${skill.found ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                              <span>{skill.keyword}</span>
-                              <span className="text-xs">{skill.found ? '✓' : '✗'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 2. Formatting Analysis */}
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold mb-3 flex items-center gap-2">
-                        <FiAlertTriangle className="text-yellow-400" />
-                        2. Formatting & Layout Analysis
-                        <span className="text-xs text-white/40 ml-2">(20% of score)</span>
-                      </h3>
-                      
-                      {advancedAnalysis.formattingAnalysis?.issues && advancedAnalysis.formattingAnalysis.issues.length > 0 ? (
-                        <ul className="space-y-2">
-                          {advancedAnalysis.formattingAnalysis.issues.map((issue, i) => (
-                            <li key={i} className="text-red-400 text-sm flex items-center gap-2">
-                              <FiAlertCircle /> {issue}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-green-400 text-sm flex items-center gap-2">
-                          <FiCheckCircle /> No major formatting issues detected!
-                        </p>
-                      )}
-                      
-                      {advancedAnalysis.formattingAnalysis?.warnings && advancedAnalysis.formattingAnalysis.warnings.map((warning, i) => (
-                        <p key={i} className="text-yellow-400 text-sm flex items-center gap-2 mt-2">
-                          <FiAlertTriangle /> {warning}
-                        </p>
-                      ))}
-                    </div>
-
-                    {/* 3. Sections Analysis */}
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold mb-3 flex items-center gap-2">
-                        <FiList className="text-cyan-400" />
-                        3. Resume Sections Analysis
-                        <span className="text-xs text-white/40 ml-2">(15% of score)</span>
-                      </h3>
-                      
-                      <div className="mb-3">
-                        <p className="text-sm text-white/70 mb-2">Found Sections:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {advancedAnalysis.sectionAnalysis?.foundSections?.map((section, i) => (
-                            <span key={i} className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs">
-                              ✓ {section}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {advancedAnalysis.sectionAnalysis?.missingSections && advancedAnalysis.sectionAnalysis.missingSections.length > 0 && (
-                        <div>
-                          <p className="text-sm text-white/70 mb-2">Missing Sections:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {advancedAnalysis.sectionAnalysis.missingSections.map((section, i) => (
-                              <span key={i} className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 text-xs">
-                                + {section}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      <p className={`text-sm mt-3 ${advancedAnalysis.sectionAnalysis?.hasProperHeadings ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {advancedAnalysis.sectionAnalysis?.hasProperHeadings ? 
-                          '✓ Proper heading format detected' : 
-                          '⚠️ Consider using standard heading format (ALL CAPS or Title Case)'}
-                      </p>
-                      <p className="text-sm text-white/60 mt-2">{advancedAnalysis.sectionAnalysis?.summaryAnalysis}</p>
-                    </div>
-
-                    {/* 4. Content Quality Analysis */}
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold mb-3 flex items-center gap-2">
-                        <FiZap className="text-cyan-400" />
-                        4. Content Quality Analysis
-                        <span className="text-xs text-white/40 ml-2">(15% of score)</span>
-                      </h3>
-                      
-                      <div className="space-y-2 text-sm">
-                        <p className={advancedAnalysis.contentQualityAnalysis?.jobTitleMatch ? 'text-green-400' : 'text-yellow-400'}>
-                          {advancedAnalysis.contentQualityAnalysis?.jobTitleMatch ? 
-                            '✓ Target role mentioned in resume' : 
-                            '⚠️ Add your target role to professional summary'}
-                        </p>
-                        <p className={advancedAnalysis.contentQualityAnalysis?.hasAchievements ? 'text-green-400' : 'text-yellow-400'}>
-                          {advancedAnalysis.contentQualityAnalysis?.hasAchievements ? 
-                            '✓ Quantifiable achievements detected' : 
-                            '⚠️ Add numbers and metrics to highlight achievements'}
-                        </p>
-                        <p className={advancedAnalysis.contentQualityAnalysis?.hasActionVerbs ? 'text-green-400' : 'text-yellow-400'}>
-                          {advancedAnalysis.contentQualityAnalysis?.hasActionVerbs ? 
-                            '✓ Strong action verbs used' : 
-                            '⚠️ Use action verbs like "Developed", "Led", "Implemented"'}
-                        </p>
-                        {advancedAnalysis.contentQualityAnalysis?.yearsOfExperience > 0 && (
-                          <p className="text-green-400">✓ {advancedAnalysis.contentQualityAnalysis.yearsOfExperience}+ years of experience mentioned</p>
-                        )}
-                      </div>
-                      
-                      {advancedAnalysis.contentQualityAnalysis?.suggestions && advancedAnalysis.contentQualityAnalysis.suggestions.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-sm font-semibold mb-2">Suggestions:</p>
-                          <ul className="space-y-1">
-                            {advancedAnalysis.contentQualityAnalysis.suggestions.map((suggestion, i) => (
-                              <li key={i} className="text-white/60 text-xs">• {suggestion}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 5. ATS Compatibility */}
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold mb-3 flex items-center gap-2">
-                        <FiCpu className="text-cyan-400" />
-                        5. ATS Compatibility Detection
-                        <span className="text-xs text-white/40 ml-2">(10% of score)</span>
-                      </h3>
-                      
-                      <div className="space-y-2">
-                        <p className={advancedAnalysis.atsDetection?.hasPDF ? 'text-green-400' : 'text-red-400'}>
-                          {advancedAnalysis.atsDetection?.hasPDF ? '✓ PDF format' : '✗ PDF format recommended'}
-                        </p>
-                        <p className={advancedAnalysis.atsDetection?.hasNoGraphics ? 'text-green-400' : 'text-yellow-400'}>
-                          {advancedAnalysis.atsDetection?.hasNoGraphics ? '✓ No graphics detected' : '⚠️ Graphics may not parse correctly in ATS'}
-                        </p>
-                        <p className={advancedAnalysis.atsDetection?.hasStandardSections ? 'text-green-400' : 'text-yellow-400'}>
-                          {advancedAnalysis.atsDetection?.hasStandardSections ? '✓ Standard section headings' : '⚠️ Use standard headings: Experience, Education, Skills'}
-                        </p>
-                      </div>
-                      
-                      {advancedAnalysis.atsDetection?.platformTips && advancedAnalysis.atsDetection.platformTips.length > 0 && (
-                        <div className="mt-3 p-3 bg-cyan-500/10 rounded-lg">
-                          <p className="text-cyan-400 text-sm font-semibold mb-2">💡 ATS Tips:</p>
-                          <ul className="space-y-1">
-                            {advancedAnalysis.atsDetection.platformTips.map((tip, i) => (
-                              <li key={i} className="text-white/60 text-xs">• {tip}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
+                    <div className="glass-card p-6"><div className="flex items-center justify-between mb-4"><h2 className="text-xl font-semibold">📊 Comprehensive ATS Analysis</h2><span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400">Full Analysis</span></div>
+                    <div className="flex items-center gap-8 mb-6"><div className="relative w-32 h-32"><svg className="w-32 h-32 transform -rotate-90"><circle cx="64" cy="64" r="58" stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="none"/><circle cx="64" cy="64" r="58" stroke="url(#gradient2)" strokeWidth="8" fill="none" strokeDasharray={`${advancedAnalysis.finalScore * 3.64} 364`} className="transition-all duration-1000"/><defs><linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#06b6d4"/><stop offset="100%" stopColor="#a855f7"/></linearGradient></defs></svg><div className="absolute inset-0 flex items-center justify-center"><span className="text-3xl font-bold">{advancedAnalysis.finalScore}</span></div></div>
+                    <div><p className="text-lg font-semibold">Overall ATS Score</p><p className="text-white/60 text-sm">{advancedAnalysis.finalScore >= 80 ? '🎉 Excellent!' : advancedAnalysis.finalScore >= 60 ? '👍 Good!' : '⚠️ Needs improvement'}</p><p className="text-xs text-white/40 mt-1">Based on keywords, formatting, sections, content, and ATS compatibility</p></div></div></div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           )}
 
-          {/* Resume Builder Tab - UNCHANGED */}
+          {/* Resume Builder Tab */}
           {activeTab === 'builder' && (
             <div className="glass-card p-8">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <FiEdit3 className="text-cyan-400" />
-                Resume Builder
-              </h2>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-2 text-white/70">Select Template</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {templates.map((template) => (
-                    <div
-                      key={template.id}
-                      onClick={() => setSelectedTemplate(template.id)}
-                      className={`p-3 rounded-lg cursor-pointer transition-all text-center ${
-                        selectedTemplate === template.id
-                          ? 'bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500'
-                          : 'bg-white/5 hover:bg-white/10'
-                      }`}
-                    >
-                      <div className="w-12 h-12 rounded-full mx-auto mb-2" style={{ backgroundColor: template.color }} />
-                      <p className="font-medium text-sm">{template.name}</p>
-                      <p className="text-xs text-white/40">{template.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><FiEdit3 className="text-cyan-400" /> Resume Builder</h2>
+              <div className="mb-6"><label className="block text-sm font-medium mb-2 text-white/70">Select Template</label><div className="grid grid-cols-3 gap-3">{templates.map((template) => (<div key={template.id} onClick={() => setSelectedTemplate(template.id)} className={`p-3 rounded-lg cursor-pointer transition-all text-center ${selectedTemplate === template.id ? 'bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500' : 'bg-white/5 hover:bg-white/10'}`}><div className="w-12 h-12 rounded-full mx-auto mb-2" style={{ backgroundColor: template.color }} /><p className="font-medium text-sm">{template.name}</p><p className="text-xs text-white/40">{template.description}</p></div>))}</div></div>
               <div className="space-y-4 max-h-96 overflow-y-auto">
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={builderForm.fullName}
-                  onChange={(e) => setBuilderForm({ ...builderForm, fullName: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={builderForm.email}
-                  onChange={(e) => setBuilderForm({ ...builderForm, email: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <input
-                  type="text"
-                  placeholder="Phone"
-                  value={builderForm.phone}
-                  onChange={(e) => setBuilderForm({ ...builderForm, phone: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <textarea
-                  placeholder="Professional Summary"
-                  rows={3}
-                  value={builderForm.summary}
-                  onChange={(e) => setBuilderForm({ ...builderForm, summary: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <textarea
-                  placeholder="Experience (Describe your work experience)"
-                  rows={4}
-                  value={builderForm.experience}
-                  onChange={(e) => setBuilderForm({ ...builderForm, experience: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <textarea
-                  placeholder="Education"
-                  rows={2}
-                  value={builderForm.education}
-                  onChange={(e) => setBuilderForm({ ...builderForm, education: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <textarea
-                  placeholder="Skills (comma separated)"
-                  rows={2}
-                  value={builderForm.skills}
-                  onChange={(e) => setBuilderForm({ ...builderForm, skills: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
+                <input type="text" placeholder="Full Name" value={builderForm.fullName} onChange={(e) => setBuilderForm({ ...builderForm, fullName: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                <input type="email" placeholder="Email" value={builderForm.email} onChange={(e) => setBuilderForm({ ...builderForm, email: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                <input type="text" placeholder="Phone" value={builderForm.phone} onChange={(e) => setBuilderForm({ ...builderForm, phone: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                <textarea placeholder="Professional Summary" rows={3} value={builderForm.summary} onChange={(e) => setBuilderForm({ ...builderForm, summary: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                <textarea placeholder="Experience" rows={4} value={builderForm.experience} onChange={(e) => setBuilderForm({ ...builderForm, experience: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                <textarea placeholder="Education" rows={2} value={builderForm.education} onChange={(e) => setBuilderForm({ ...builderForm, education: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                <textarea placeholder="Skills (comma separated)" rows={2} value={builderForm.skills} onChange={(e) => setBuilderForm({ ...builderForm, skills: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
               </div>
-
-              <button
-                onClick={saveBuiltResume}
-                disabled={!selectedTemplate || !builderForm.fullName}
-                className="btn-primary w-full mt-6 py-2 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <FiSave /> Save Resume
-              </button>
+              <button onClick={saveBuiltResume} disabled={!selectedTemplate || !builderForm.fullName} className="btn-primary w-full mt-6 py-2 flex items-center justify-center gap-2 disabled:opacity-50"><FiSave /> Save Resume</button>
             </div>
           )}
 
-          {/* LaTeX Editor Tab - UNCHANGED */}
+          {/* LaTeX Editor Tab */}
           {activeTab === 'latex' && (
             <div className="glass-card p-8">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <FiCode className="text-cyan-400" />
-                LaTeX Editor
-              </h2>
-              <textarea 
-                value={latexContent}
-                onChange={(e) => setLatexContent(e.target.value)}
-                className="w-full h-96 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white font-mono text-sm"
-              />
-              <div className="flex gap-3 mt-4">
-                <button onClick={saveLatexContent} className="btn-primary py-2 px-6 flex items-center gap-2">
-                  <FiSave /> Save LaTeX
-                </button>
-                <button className="btn-secondary py-2 px-6 flex items-center gap-2">
-                  <FiPrinter /> Compile PDF
-                </button>
-              </div>
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><FiCode className="text-cyan-400" /> LaTeX Editor</h2>
+              <textarea value={latexContent} onChange={(e) => setLatexContent(e.target.value)} className="w-full h-96 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white font-mono text-sm" />
+              <div className="flex gap-3 mt-4"><button onClick={saveLatexContent} className="btn-primary py-2 px-6 flex items-center gap-2"><FiSave /> Save LaTeX</button><button className="btn-secondary py-2 px-6 flex items-center gap-2"><FiPrinter /> Compile PDF</button></div>
             </div>
           )}
 
-          {/* Cover Letter Tab - UNCHANGED */}
+          {/* AI Cover Letter Tab - UPDATED WITH AI */}
           {activeTab === 'cover' && (
             <div className="glass-card p-8">
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <FiMail className="text-cyan-400" />
-                Cover Letter Generator
+                AI Cover Letter Generator
               </h2>
               <div className="space-y-4">
-                <input 
-                  type="text" 
-                  placeholder="Company Name"
-                  value={coverLetter.company}
-                  onChange={(e) => setCoverLetter({ ...coverLetter, company: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <input 
-                  type="text" 
-                  placeholder="Position"
-                  value={coverLetter.position}
-                  onChange={(e) => setCoverLetter({ ...coverLetter, position: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                <textarea 
-                  placeholder="Key skills or experiences to highlight (optional)"
-                  rows={2}
-                  value={coverLetter.skills}
-                  onChange={(e) => setCoverLetter({ ...coverLetter, skills: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white"
-                />
-                
-                <button onClick={generateCoverLetter} className="btn-primary w-full py-2 flex items-center justify-center gap-2">
-                  <FiZap /> Generate Cover Letter
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white/70">Company Name *</label>
+                  <input type="text" placeholder="e.g., Google, Microsoft, Amazon" value={coverLetter.company} onChange={(e) => setCoverLetter({ ...coverLetter, company: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white/70">Position *</label>
+                  <input type="text" placeholder="e.g., Software Engineer, Data Scientist" value={coverLetter.position} onChange={(e) => setCoverLetter({ ...coverLetter, position: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white/70">Your Skills (comma separated)</label>
+                  <textarea placeholder="React, Java, Python, Spring Boot, AWS" rows={2} value={coverLetter.skills} onChange={(e) => setCoverLetter({ ...coverLetter, skills: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white/70">Writing Tone</label>
+                  <div className="flex gap-2">
+                    {['professional', 'enthusiastic', 'concise'].map((tone) => (
+                      <button key={tone} onClick={() => setCoverLetter({ ...coverLetter, tone: tone as any })} className={`px-3 py-1.5 rounded-lg text-sm transition-all ${coverLetter.tone === tone ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}>
+                        {tone.charAt(0).toUpperCase() + tone.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={generateAICoverLetter} disabled={!coverLetter.company || !coverLetter.position || isGeneratingLetter} className="btn-primary w-full py-2 flex items-center justify-center gap-2 disabled:opacity-50">
+                  {isGeneratingLetter ? <FiRefreshCw className="animate-spin" /> : <FiZap />}
+                  {isGeneratingLetter ? 'AI is writing...' : 'Generate Cover Letter with AI'}
                 </button>
 
                 {coverLetter.generatedLetter && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
-                    <textarea
-                      value={coverLetter.generatedLetter}
-                      readOnly
-                      rows={12}
-                      className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 outline-none text-white/90 text-sm"
-                    />
-                    <button onClick={saveCoverLetter} className="btn-secondary w-full mt-3 py-2 flex items-center justify-center gap-2">
-                      <FiSave /> Save Cover Letter
-                    </button>
+                    <label className="block text-sm font-medium mb-2 text-white/70">Generated Cover Letter</label>
+                    <textarea value={coverLetter.generatedLetter} onChange={(e) => setCoverLetter({ ...coverLetter, generatedLetter: e.target.value })} rows={14} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-cyan-500 outline-none text-white/90 text-sm font-mono" />
+                    <div className="flex gap-3 mt-3">
+                      <button onClick={copyToClipboard} className="flex-1 btn-secondary py-2 flex items-center justify-center gap-2"><FiCopy /> Copy to Clipboard</button>
+                      <button onClick={saveCoverLetter} className="flex-1 btn-primary py-2 flex items-center justify-center gap-2"><FiSave /> Save to Profile</button>
+                    </div>
                   </motion.div>
                 )}
               </div>
@@ -1116,83 +791,23 @@ Sincerely,
           )}
         </div>
 
-        {/* Sidebar - UNCHANGED */}
+        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Your Resumes */}
           <div className="glass-card p-5">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <FiList className="text-cyan-400" />
-              Your Resumes ({resumes.length})
-            </h3>
+            <h3 className="font-semibold mb-3 flex items-center gap-2"><FiList className="text-cyan-400" /> Your Resumes ({resumes.length})</h3>
             {resumes.length > 0 ? (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {resumes.map((resume) => (
-                  <div key={resume.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <FiFile className="text-cyan-400 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{resume.fileName}</p>
-                        <p className="text-xs text-white/40">{new Date(resume.uploadedAt).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button 
-                        onClick={() => downloadResume(resume.id, resume.fileName)}
-                        className="p-1 hover:text-cyan-400 transition-colors"
-                        title="Download"
-                      >
-                        <FiDownload size={14} />
-                      </button>
-                      <button 
-                        onClick={() => deleteResume(resume.id)}
-                        className="p-1 hover:text-red-400 transition-colors"
-                        title="Delete"
-                      >
-                        <FiTrash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-white/40 text-sm text-center py-4">No resumes uploaded yet</p>
-            )}
+              <div className="space-y-2 max-h-80 overflow-y-auto">{resumes.map((resume) => (<div key={resume.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg"><div className="flex items-center gap-2 flex-1 min-w-0"><FiFile className="text-cyan-400 shrink-0" /><div className="flex-1 min-w-0"><p className="text-sm truncate">{resume.fileName}</p><p className="text-xs text-white/40">{new Date(resume.uploadedAt).toLocaleDateString()}</p></div></div><div className="flex gap-1"><button onClick={() => downloadResume(resume.id, resume.fileName)} className="p-1 hover:text-cyan-400 transition-colors" title="Download"><FiDownload size={14} /></button><button onClick={() => deleteResume(resume.id)} className="p-1 hover:text-red-400 transition-colors" title="Delete"><FiTrash2 size={14} /></button></div></div>))}</div>
+            ) : (<p className="text-white/40 text-sm text-center py-4">No resumes uploaded yet</p>)}
           </div>
 
-          {/* Progress */}
           <div className="glass-card p-5">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <FiBarChart2 className="text-cyan-400" />
-              Progress
-            </h3>
-            {atsScore ? (
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Latest ATS Score</span>
-                  <span className="text-cyan-400">{atsScore}%</span>
-                </div>
-                <div className="w-full bg-white/10 rounded-full h-2">
-                  <div className="bg-gradient-to-r from-cyan-500 to-purple-500 h-2 rounded-full transition-all" style={{ width: `${atsScore}%` }} />
-                </div>
-                <p className="text-xs text-white/40 mt-2">Total uploads: {resumes.length}</p>
-              </div>
-            ) : (
-              <p className="text-white/40 text-sm text-center py-2">
-                Upload and analyze a resume to track your progress
-              </p>
-            )}
+            <h3 className="font-semibold mb-3 flex items-center gap-2"><FiBarChart2 className="text-cyan-400" /> Progress</h3>
+            {atsScore ? (<div><div className="flex justify-between text-sm mb-1"><span>Latest ATS Score</span><span className="text-cyan-400">{atsScore}%</span></div><div className="w-full bg-white/10 rounded-full h-2"><div className="bg-gradient-to-r from-cyan-500 to-purple-500 h-2 rounded-full transition-all" style={{ width: `${atsScore}%` }} /></div><p className="text-xs text-white/40 mt-2">Total uploads: {resumes.length}</p></div>) : (<p className="text-white/40 text-sm text-center py-2">Upload and analyze a resume to track your progress</p>)}
           </div>
 
-          {/* Tips */}
           <div className="glass-card p-5">
             <h3 className="font-semibold mb-3">💡 Pro Tips</h3>
-            <ul className="space-y-2 text-white/60 text-sm">
-              <li>• Use standard section headings (Experience, Education, Skills)</li>
-              <li>• Avoid tables, columns, and graphics for ATS</li>
-              <li>• Save as PDF before submitting</li>
-              <li>• Tailor your resume for each application</li>
-              <li>• Include keywords from job description</li>
-            </ul>
+            <ul className="space-y-2 text-white/60 text-sm"><li>• Use standard section headings (Experience, Education, Skills)</li><li>• Avoid tables, columns, and graphics for ATS</li><li>• Save as PDF before submitting</li><li>• Tailor your resume for each application</li><li>• Include keywords from job description</li></ul>
           </div>
         </div>
       </div>

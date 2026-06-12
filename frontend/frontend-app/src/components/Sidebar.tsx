@@ -26,7 +26,7 @@ export default function Sidebar() {
     { path: '/roadmap', icon: FiBookOpen, label: 'Roadmap' },
     { path: '/companies', icon: FiBriefcase, label: 'Company Prep' },
     { path: '/coding', icon: FiCode, label: 'Coding Practice' },
-    { path: '/cover-letter', icon: FiMail, label: 'Cover Letter Generator' },
+    //{ path: '/cover-letter', icon: FiMail, label: 'Cover Letter Generator' },//
     { path: '/progress', icon: FiBarChart2, label: 'Progress & Analytics' },
     { path: '/settings', icon: FiSettings, label: 'Settings' },
   ];
