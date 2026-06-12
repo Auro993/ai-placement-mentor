@@ -20,9 +20,12 @@ app = Flask(__name__)
 CORS(app)
 
 # =====================================================
-# HARDCODED ACTIVE FRESH API KEY FROM YOUR testing2 PROJECT
+# GET API KEY FROM ENVIRONMENT VARIABLE (NOT HARDCODED)
 # =====================================================
-GEMINI_API_KEY = "AIzaSyAig5es9bjj1d8uOaMZf70d-wENh-Yteh0"
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    print("❌ ERROR: GEMINI_API_KEY not found in .env file")
+    exit(1)
 
 # Initialize modern client directly with your working key
 client = genai.Client(api_key=GEMINI_API_KEY)
