@@ -10,6 +10,8 @@ import Coding from './pages/Coding';
 import CoverLetter from './pages/CoverLetter';
 import Progress from './pages/Progress';
 import Settings from './pages/Settings';
+import GitHubInsights from './pages/GitHubInsights';
+import LinkedInStudio from './pages/LinkedInStudio';
 
 // Pages
 import Landing from './pages/Landing';
@@ -21,8 +23,6 @@ import Resume from './pages/Resume';
 import MockInterview from './pages/MockInterview';
 import Profile from './pages/Profile';
 import CompanyDetails from './pages/CompanyDetails';
-
-
 
 function App() {
   return (
@@ -44,11 +44,13 @@ function App() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/roadmap" element={<Roadmap />} />
                 <Route path="/companies/:id" element={<CompanyDetails />} />
-<Route path="/companies" element={<Companies />} />
-<Route path="/coding" element={<Coding />} />
-<Route path="/cover-letter" element={<CoverLetter />} />
-<Route path="/progress" element={<Progress />} />
-<Route path="/settings" element={<Settings />} />
+                <Route path="/companies" element={<Companies />} />
+                <Route path="/coding" element={<Coding />} />
+                <Route path="/cover-letter" element={<CoverLetter />} />
+                <Route path="/progress" element={<Progress />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/github-insights" element={<GitHubInsights />} />
+                <Route path="/linkedin-studio" element={<LinkedInStudio />} />
               </Route>
             </Route>
             

@@ -338,7 +338,7 @@ Make it practical, actionable, and personalized to {role}. Use real YouTube link
         return jsonify(fallback_roadmap)
 
 # =====================================================
-# COVER LETTER GENERATOR AI ENDPOINT (NEW)
+# COVER LETTER GENERATOR AI ENDPOINT
 # =====================================================
 @app.route("/api/cover-letter/generate", methods=["POST"])
 def generate_cover_letter():
@@ -381,7 +381,6 @@ Format it as a proper business letter."""
         
     except Exception as e:
         print(f"❌ Cover Letter Error: {e}")
-        # Return fallback cover letter
         fallback_letter = f"""
 {data.get('date', 'Date')}
 
@@ -404,6 +403,39 @@ Sincerely,
         return jsonify({"coverLetter": fallback_letter})
 
 # =====================================================
+# NEW: LINKEDIN POST GENERATOR ENDPOINT
+# =====================================================
+@app.route("/api/linkedin/generate-post", methods=["POST"])
+def generate_linkedin_post():
+    try:
+        data = request.json
+        topic = data.get('topic', '')
+        post_type = data.get('postType', 'achievement')
+        user_name = data.get('userName', 'Professional')
+        
+        prompt = f"""Write an engaging LinkedIn post about: {topic}
+
+Post Type: {post_type}
+Author: {user_name}
+
+Requirements:
+- Professional and engaging tone
+- Use emojis appropriately
+- Include relevant hashtags
+- Keep under 300 words
+- Add a question to encourage engagement
+- Write in first person
+
+Write the post directly without any explanation."""
+        
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        return jsonify({"post": response.text})
+        
+    except Exception as e:
+        print(f"❌ LinkedIn Post Error: {e}")
+        return jsonify({"post": f"Excited to share that {topic}! 🎉 What's your experience with this? #Growth #Learning"})
+
+# =====================================================
 # START RUNTIME
 # =====================================================
 if __name__ == "__main__":
@@ -415,6 +447,7 @@ if __name__ == "__main__":
     print("   - /api/interview/generate-question")
     print("   - /api/interview/analyze")
     print("   - /api/roadmap/generate")
-    print("   - /api/cover-letter/generate (NEW)")
+    print("   - /api/cover-letter/generate")
+    print("   - /api/linkedin/generate-post (NEW)")
     print("=" * 60)
     app.run(host="0.0.0.0", port=5001, debug=True)

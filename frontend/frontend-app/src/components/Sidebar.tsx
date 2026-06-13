@@ -12,10 +12,16 @@ import {
   FiMail,
   FiBarChart2,
   FiStar,
-  FiAward
+  FiAward,
+  FiGithub,
+  FiLinkedin
 } from 'react-icons/fi';
 
 export default function Sidebar() {
+  
+  const handleUpgradeClick = () => {
+    alert("Premium features coming soon! 🚀");
+  };
   
   // Main navigation items
   const mainNavItems = [
@@ -26,7 +32,8 @@ export default function Sidebar() {
     { path: '/roadmap', icon: FiBookOpen, label: 'Roadmap' },
     { path: '/companies', icon: FiBriefcase, label: 'Company Prep' },
     { path: '/coding', icon: FiCode, label: 'Coding Practice' },
-    //{ path: '/cover-letter', icon: FiMail, label: 'Cover Letter Generator' },//
+    { path: '/github-insights', icon: FiGithub, label: 'GitHub Insights' },
+    { path: '/linkedin-studio', icon: FiLinkedin, label: 'LinkedIn Studio' },
     { path: '/progress', icon: FiBarChart2, label: 'Progress & Analytics' },
     { path: '/settings', icon: FiSettings, label: 'Settings' },
   ];
@@ -43,11 +50,9 @@ export default function Sidebar() {
             className="w-20 h-20 rounded-xl object-cover"
           />
           <div>
-            {/* JobGenie - Gradient Text */}
             <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               JobGenie
             </h1>
-            {/* AI Placement Mentor - Styled with tracking and opacity */}
             <p className="text-gray-400 text-sm tracking-wide uppercase">
               AI Placement Mentor
             </p>
@@ -75,7 +80,7 @@ export default function Sidebar() {
         ))}
       </nav>
       
-      {/* Upgrade to Pro */}
+      {/* Upgrade to Pro - WITH ALERT */}
       <div className="p-4 mt-4 border-t border-white/10">
         <div className="bg-gradient-to-r from-cyan-600/10 to-purple-600/10 rounded-xl p-3 border border-cyan-500/20">
           <div className="flex items-center gap-2 mb-1">
@@ -85,7 +90,10 @@ export default function Sidebar() {
           <p className="text-[10px] text-gray-400 leading-relaxed mb-2">
             Unlock advanced features and AI feedback.
           </p>
-          <button className="w-full py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-purple-600 text-white text-[10px] font-medium hover:from-cyan-500 hover:to-purple-500 transition-all">
+          <button 
+            onClick={handleUpgradeClick}
+            className="w-full py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-purple-600 text-white text-[10px] font-medium hover:from-cyan-500 hover:to-purple-500 transition-all"
+          >
             Upgrade Now →
           </button>
         </div>
