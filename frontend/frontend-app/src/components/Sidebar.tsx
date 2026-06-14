@@ -14,7 +14,8 @@ import {
   FiStar,
   FiAward,
   FiGithub,
-  FiLinkedin
+  FiLinkedin,
+  FiFolder
 } from 'react-icons/fi';
 
 export default function Sidebar() {
@@ -35,6 +36,7 @@ export default function Sidebar() {
     { path: '/github-insights', icon: FiGithub, label: 'GitHub Insights' },
     { path: '/linkedin-studio', icon: FiLinkedin, label: 'LinkedIn Studio' },
     { path: '/progress', icon: FiBarChart2, label: 'Progress & Analytics' },
+    { path: '/portfolio-builder', icon: FiFolder, label: 'Portfolio Builder' },
     { path: '/settings', icon: FiSettings, label: 'Settings' },
   ];
   

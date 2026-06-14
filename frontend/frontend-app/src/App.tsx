@@ -12,6 +12,8 @@ import Progress from './pages/Progress';
 import Settings from './pages/Settings';
 import GitHubInsights from './pages/GitHubInsights';
 import LinkedInStudio from './pages/LinkedInStudio';
+import PortfolioBuilder from './pages/PortfolioBuilder';
+import PortfolioView from './pages/PortfolioView';
 
 // Pages
 import Landing from './pages/Landing';
@@ -34,6 +36,9 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             
+            {/* Public Portfolio View - No authentication required */}
+            <Route path="/portfolio/:username" element={<PortfolioView />} />
+            
             {/* Protected Routes - Require Authentication */}
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
@@ -51,6 +56,7 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/github-insights" element={<GitHubInsights />} />
                 <Route path="/linkedin-studio" element={<LinkedInStudio />} />
+                <Route path="/portfolio-builder" element={<PortfolioBuilder />} />
               </Route>
             </Route>
             
