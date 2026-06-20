@@ -68,11 +68,18 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
-      // Call backend API
+      // Get current session messages for context
+      const currentSession = sessions.find(s => s.id === currentSessionId);
+      const chatHistory = currentSession?.messages || [];
+      
+      // Send message with history
       const response = await fetch(`${API_BASE}/chat/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ 
+          message: content,
+          history: chatHistory 
+        }),
       });
       
       if (!response.ok) {
@@ -95,7 +102,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ));
     } catch (error) {
       console.error('Chat error:', error);
-      // Fallback mock response
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',

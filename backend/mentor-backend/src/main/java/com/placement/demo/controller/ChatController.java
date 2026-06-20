@@ -26,17 +26,19 @@ public class ChatController {
     
     private final String AI_SERVICE_URL = "http://localhost:5001/api/chat/send";
 
-    // Temporary user ID (will be replaced with actual auth)
     private Long currentUserId = 1L;
 
     @PostMapping("/send")
     public ResponseEntity<?> sendMessage(@RequestBody ChatRequest request) {
         try {
             String userMessage = request.getMessage();
-            System.out.println("📝 User message: " + userMessage);
+            List<Map<String, String>> history = request.getHistory();
             
-            // Get AI response from Python service
-            String aiResponse = getAiResponseFromService(userMessage);
+            System.out.println("📝 User message: " + userMessage);
+            System.out.println("📚 History length: " + (history != null ? history.size() : 0));
+            
+            // Get AI response from Python service with history
+            String aiResponse = getAiResponseFromService(userMessage, history);
             System.out.println("🤖 AI Response: " + aiResponse);
             
             // Get user
@@ -64,11 +66,15 @@ public class ChatController {
         }
     }
     
-    private String getAiResponseFromService(String message) {
+    private String getAiResponseFromService(String message, List<Map<String, String>> history) {
         try {
             RestTemplate restTemplate = new RestTemplate();
-            Map<String, String> request = new HashMap<>();
+            
+            Map<String, Object> request = new HashMap<>();
             request.put("message", message);
+            if (history != null) {
+                request.put("history", history);
+            }
             
             ResponseEntity<Map> response = restTemplate.postForEntity(
                 AI_SERVICE_URL, 
@@ -89,7 +95,6 @@ public class ChatController {
     }
     
     private String getFallbackResponse(String message) {
-        // Fallback responses if AI service is down
         String[] fallbacks = {
             "Great question! For placement preparation, focus on DSA and system design fundamentals.",
             "I recommend practicing mock interviews regularly to build confidence.",
@@ -120,8 +125,11 @@ public class ChatController {
 
     static class ChatRequest {
         private String message;
+        private List<Map<String, String>> history;
         
         public String getMessage() { return message; }
         public void setMessage(String message) { this.message = message; }
+        public List<Map<String, String>> getHistory() { return history; }
+        public void setHistory(List<Map<String, String>> history) { this.history = history; }
     }
 }

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { ToastProvider } from './context/ToastContext';
+import { SidebarProvider } from './context/SidebarContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './layouts/MainLayout';
 import Roadmap from './pages/Roadmap';
@@ -31,38 +32,37 @@ function App() {
     <AuthProvider>
       <ChatProvider>
         <ToastProvider>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            
-            {/* Public Portfolio View - No authentication required */}
-            <Route path="/portfolio/:username" element={<PortfolioView />} />
-            
-            {/* Protected Routes - Require Authentication */}
-            <Route element={<ProtectedRoute />}>
-              <Route element={<Layout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/chat" element={<Chat />} />
-                <Route path="/resume" element={<Resume />} />
-                <Route path="/interview" element={<MockInterview />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/roadmap" element={<Roadmap />} />
-                <Route path="/companies/:id" element={<CompanyDetails />} />
-                <Route path="/companies" element={<Companies />} />
-                <Route path="/coding" element={<Coding />} />
-                <Route path="/cover-letter" element={<CoverLetter />} />
-                <Route path="/progress" element={<Progress />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/github-insights" element={<GitHubInsights />} />
-                <Route path="/linkedin-studio" element={<LinkedInStudio />} />
-                <Route path="/portfolio-builder" element={<PortfolioBuilder />} />
+          <SidebarProvider>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              
+              <Route path="/portfolio/:username" element={<PortfolioView />} />
+              
+              <Route element={<ProtectedRoute />}>
+                <Route element={<Layout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/chat" element={<Chat />} />
+                  <Route path="/resume" element={<Resume />} />
+                  <Route path="/interview" element={<MockInterview />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/roadmap" element={<Roadmap />} />
+                  <Route path="/companies/:id" element={<CompanyDetails />} />
+                  <Route path="/companies" element={<Companies />} />
+                  <Route path="/coding" element={<Coding />} />
+                  <Route path="/cover-letter" element={<CoverLetter />} />
+                  <Route path="/progress" element={<Progress />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/github-insights" element={<GitHubInsights />} />
+                  <Route path="/linkedin-studio" element={<LinkedInStudio />} />
+                  <Route path="/portfolio-builder" element={<PortfolioBuilder />} />
+                </Route>
               </Route>
-            </Route>
-            
-            {/* Catch all - redirect to home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </SidebarProvider>
         </ToastProvider>
       </ChatProvider>
     </AuthProvider>
