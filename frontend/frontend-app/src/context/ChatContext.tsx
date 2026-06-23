@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
 export interface Message {
   id: string;
@@ -12,6 +12,7 @@ export interface ChatSession {
   title: string;
   messages: Message[];
   createdAt: Date;
+  updatedAt: Date;  // Added for tracking last update
 }
 
 interface ChatContextType {
@@ -22,6 +23,7 @@ interface ChatContextType {
   switchSession: (id: string) => void;
   deleteSession: (id: string) => void;
   isLoading: boolean;
+  renameSession: (id: string, newTitle: string) => void; // Added rename
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -35,35 +37,114 @@ export const useChat = () => {
 const API_BASE = 'http://localhost:8080/api';
 
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Initialize state from localStorage
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    const saved = localStorage.getItem('chatSessions');
-    if (saved) return JSON.parse(saved);
+    try {
+      const saved = localStorage.getItem('chatSessions');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Convert string dates back to Date objects
+        return parsed.map((session: any) => ({
+          ...session,
+          createdAt: new Date(session.createdAt),
+          updatedAt: new Date(session.updatedAt),
+          messages: session.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading sessions:', err);
+    }
+    
+    // Default session if nothing saved
     return [{
-      id: '1',
+      id: Date.now().toString(),
       title: 'New Chat',
-      messages: [{ id: 'welcome', role: 'assistant', content: "Hi! I'm your AI Placement Mentor. Ask me anything about resume building, interview tips, or career advice!", timestamp: new Date() }],
-      createdAt: new Date()
+      messages: [{ 
+        id: 'welcome-' + Date.now(), 
+        role: 'assistant', 
+        content: "Hi! I'm your AI Placement Mentor. Ask me anything about resume building, interview tips, or career advice!", 
+        timestamp: new Date() 
+      }],
+      createdAt: new Date(),
+      updatedAt: new Date()
     }];
   });
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>('1');
+  
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem('chatCurrentSessionId');
+      return saved || null;
+    } catch {
+      return null;
+    }
+  });
+  
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Save sessions to localStorage whenever they change
+  useEffect(() => {
+    if (isInitialized || sessions.length > 0) {
+      try {
+        localStorage.setItem('chatSessions', JSON.stringify(sessions));
+        console.log('✅ Sessions saved to localStorage:', sessions.length);
+      } catch (err) {
+        console.error('Error saving sessions:', err);
+      }
+    }
+  }, [sessions, isInitialized]);
+
+  // Save current session ID
+  useEffect(() => {
+    if (currentSessionId) {
+      try {
+        localStorage.setItem('chatCurrentSessionId', currentSessionId);
+      } catch (err) {
+        console.error('Error saving current session ID:', err);
+      }
+    }
+  }, [currentSessionId]);
+
+  // Set initialized after first render
+  useEffect(() => {
+    setIsInitialized(true);
+    
+    // If no current session but sessions exist, set first one
+    if (!currentSessionId && sessions.length > 0) {
+      setCurrentSessionId(sessions[0].id);
+    }
+  }, []);
 
   const sendMessage = async (content: string) => {
-    if (!currentSessionId) return;
+    if (!currentSessionId) {
+      // Create new session if none exists
+      createNewSession();
+      return;
+    }
     
     const userMessage: Message = { 
-      id: Date.now().toString(), 
+      id: 'user-' + Date.now(), 
       role: 'user', 
       content, 
       timestamp: new Date() 
     };
     
     // Add user message to UI
-    setSessions(prev => prev.map(session => 
-      session.id === currentSessionId 
-        ? { ...session, messages: [...session.messages, userMessage] }
-        : session
-    ));
+    setSessions(prev => {
+      const updated = prev.map(session => 
+        session.id === currentSessionId 
+          ? { 
+              ...session, 
+              messages: [...session.messages, userMessage],
+              updatedAt: new Date()
+            }
+          : session
+      );
+      return updated;
+    });
     
     setIsLoading(true);
     
@@ -78,41 +159,57 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: content,
-          history: chatHistory 
+          history: chatHistory.map(m => ({ role: m.role, content: m.content }))
         }),
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to get response');
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        data = { response: "I'm here to help with your placement preparation!" };
       }
       
-      const data = await response.json();
-      
       const assistantMessage: Message = { 
-        id: (Date.now() + 1).toString(), 
+        id: 'assistant-' + Date.now(), 
         role: 'assistant', 
-        content: data.aiResponse || "I'm here to help with your placement preparation!", 
+        content: data.response || data.aiResponse || "I'm here to help with your placement preparation!", 
         timestamp: new Date() 
       };
       
-      setSessions(prev => prev.map(session => 
-        session.id === currentSessionId 
-          ? { ...session, messages: [...session.messages, assistantMessage] }
-          : session
-      ));
+      setSessions(prev => {
+        const updated = prev.map(session => 
+          session.id === currentSessionId 
+            ? { 
+                ...session, 
+                messages: [...session.messages, assistantMessage],
+                updatedAt: new Date()
+              }
+            : session
+        );
+        return updated;
+      });
+      
     } catch (error) {
       console.error('Chat error:', error);
       const fallbackMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: 'error-' + Date.now(),
         role: 'assistant',
         content: "I'm having trouble connecting. Please try again.",
         timestamp: new Date()
       };
-      setSessions(prev => prev.map(session => 
-        session.id === currentSessionId 
-          ? { ...session, messages: [...session.messages, fallbackMessage] }
-          : session
-      ));
+      setSessions(prev => {
+        const updated = prev.map(session => 
+          session.id === currentSessionId 
+            ? { 
+                ...session, 
+                messages: [...session.messages, fallbackMessage],
+                updatedAt: new Date()
+              }
+            : session
+        );
+        return updated;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -120,27 +217,80 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const createNewSession = () => {
     const newSession: ChatSession = {
-      id: Date.now().toString(),
+      id: 'session-' + Date.now(),
       title: 'New Chat',
-      messages: [{ id: 'welcome', role: 'assistant', content: "Hi! I'm your AI Placement Mentor. How can I help you today?", timestamp: new Date() }],
-      createdAt: new Date()
+      messages: [{ 
+        id: 'welcome-' + Date.now(), 
+        role: 'assistant', 
+        content: "Hi! I'm your AI Placement Mentor. How can I help you today?", 
+        timestamp: new Date() 
+      }],
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
-    setSessions(prev => [newSession, ...prev]);
+    
+    setSessions(prev => {
+      const updated = [newSession, ...prev];
+      return updated;
+    });
     setCurrentSessionId(newSession.id);
   };
 
-  const switchSession = (id: string) => setCurrentSessionId(id);
+  const switchSession = (id: string) => {
+    setCurrentSessionId(id);
+  };
   
   const deleteSession = (id: string) => {
-    setSessions(prev => prev.filter(s => s.id !== id));
-    if (currentSessionId === id) {
-      const remaining = sessions.filter(s => s.id !== id);
-      setCurrentSessionId(remaining[0]?.id || null);
-    }
+    setSessions(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      
+      // If we deleted the current session, switch to another
+      if (currentSessionId === id && updated.length > 0) {
+        setCurrentSessionId(updated[0].id);
+      } else if (updated.length === 0) {
+        // If no sessions left, create a new one
+        const newSession: ChatSession = {
+          id: 'session-' + Date.now(),
+          title: 'New Chat',
+          messages: [{ 
+            id: 'welcome-' + Date.now(), 
+            role: 'assistant', 
+            content: "Hi! I'm your AI Placement Mentor. How can I help you today?", 
+            timestamp: new Date() 
+          }],
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        updated.push(newSession);
+        setCurrentSessionId(newSession.id);
+      }
+      
+      return updated;
+    });
+  };
+
+  const renameSession = (id: string, newTitle: string) => {
+    setSessions(prev => {
+      const updated = prev.map(session => 
+        session.id === id 
+          ? { ...session, title: newTitle.trim() || 'New Chat' }
+          : session
+      );
+      return updated;
+    });
   };
 
   return (
-    <ChatContext.Provider value={{ sessions, currentSessionId, sendMessage, createNewSession, switchSession, deleteSession, isLoading }}>
+    <ChatContext.Provider value={{ 
+      sessions, 
+      currentSessionId, 
+      sendMessage, 
+      createNewSession, 
+      switchSession, 
+      deleteSession, 
+      isLoading,
+      renameSession
+    }}>
       {children}
     </ChatContext.Provider>
   );

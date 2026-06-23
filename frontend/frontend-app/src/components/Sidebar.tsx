@@ -25,7 +25,7 @@ import { useChat } from '../context/ChatContext';
 
 export default function Sidebar() {
   const { isCollapsed, toggleSidebar } = useSidebar();
-  const { sessions, currentSessionId, switchSession, createNewSession, deleteSession } = useChat();
+  useChat();
   
   const mainNavItems = [
     { path: '/dashboard', icon: FiGrid, label: 'Dashboard' },
@@ -84,18 +84,7 @@ export default function Sidebar() {
           {isCollapsed ? <FiChevronRight className="text-cyan-400" /> : <FiChevronLeft className="text-cyan-400" />}
         </button>
         
-        {/* New Chat Button */}
-        <div className={`p-3 border-b border-white/10 ${isCollapsed ? 'flex justify-center' : ''}`}>
-          <button 
-            onClick={createNewSession}
-            className={`flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-xl transition-all ${
-              isCollapsed ? 'w-10 h-10 p-0' : 'w-full py-2 px-4 text-sm'
-            }`}
-          >
-            <FiPlus size={isCollapsed ? 20 : 16} />
-            {!isCollapsed && 'New Chat'}
-          </button>
-        </div>
+        
         
         {/* Navigation Menu */}
         <nav className={`flex-1 p-2 space-y-0.5 overflow-y-auto ${isCollapsed ? 'items-center' : ''}`}>
