@@ -1,9 +1,13 @@
 # Build stage
 FROM maven:3.9.8-eclipse-temurin-17 AS build
 WORKDIR /app
-COPY pom.xml .
+
+# Copy pom.xml from the correct location
+COPY backend/mentor-backend/pom.xml .
 RUN mvn dependency:go-offline
-COPY src ./src
+
+# Copy source code from the correct location
+COPY backend/mentor-backend/src ./src
 RUN mvn clean package -DskipTests
 
 # Run stage
