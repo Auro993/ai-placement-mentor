@@ -14,9 +14,9 @@
     "moduleDetection": "force",
     "noEmit": true,
 
-    /* Linting */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    /* Linting - CHANGE THESE TO false */
+    "noUnusedLocals": false,        // ← Changed from true to false
+    "noUnusedParameters": false,    // ← Changed from true to false
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },

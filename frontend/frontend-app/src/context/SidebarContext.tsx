@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
 
 interface SidebarContextType {
   isCollapsed: boolean;
@@ -21,7 +22,7 @@ export const SidebarProvider: React.FC<{ children: ReactNode }> = ({ children })
   });
 
   const toggleSidebar = () => {
-    setIsCollapsed(prev => {
+    setIsCollapsed((prev: boolean) => {
       const newState = !prev;
       localStorage.setItem('sidebarCollapsed', JSON.stringify(newState));
       return newState;
