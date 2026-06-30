@@ -24,7 +24,8 @@ export const useAuth = () => {
   return context;
 };
 
-const API_BASE = 'http://localhost:8080/api';
+// ✅ Use environment variable for API URL
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
@@ -68,7 +69,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.setItem('token', data.token);
       }
       
-      // Redirect to dashboard
       navigate('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
@@ -105,11 +105,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await response.json();
       console.log("Register response data:", result);
       
-      // ✅ Do NOT set user or save to localStorage here
-      // ✅ Do NOT navigate to dashboard
-      // User should login separately
-      
-      // ✅ Navigate to login page
       navigate('/login');
       
     } catch (error) {
