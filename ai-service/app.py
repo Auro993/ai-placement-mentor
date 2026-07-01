@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 import json
 import re
 import random
@@ -27,8 +26,8 @@ if not GEMINI_API_KEY:
     print("❌ ERROR: GEMINI_API_KEY not found in .env file")
     exit(1)
 
-# Initialize modern client
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Initialize Gemini API
+genai.configure(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-2.5-flash"
 
 print("✅ Gemini API Client Initialized Successfully!")
@@ -323,7 +322,7 @@ Response:"""
             return jsonify({"reply": "I'm your Placement Mentor 👨‍🏫 I can only help with placement preparation, resumes, interviews, aptitude, DSA, company preparation, and career guidance. Please ask me something placement-related! 🎯"})
 
         print("🚀 Requesting Chat Output...")
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
         return jsonify({"reply": response.text})
 
     except Exception as e:
@@ -343,23 +342,15 @@ def generate_question():
 
         print("🚀 Routing Question Generation Engine...")
         
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "question": types.Schema(type=types.Type.STRING),
-                        "category": types.Schema(type=types.Type.STRING),
-                        "tip": types.Schema(type=types.Type.STRING),
-                    },
-                    required=["question", "category", "tip"],
-                ),
-            ),
-        )
-        return jsonify(json.loads(response.text))
+        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        
+        # Try to parse JSON from response
+        try:
+            return jsonify(json.loads(response.text))
+        except:
+            # If not JSON, return as text
+            return jsonify({"question": response.text, "category": "General", "tip": "No tip available"})
+            
     except Exception as e:
         print(f"❌ AI Generation Error ({e}). Reverting to safe local dataset.")
         fallback = FALLBACK_QUESTIONS.get(role, FALLBACK_QUESTIONS["Software Engineer"])
@@ -376,31 +367,28 @@ def analyze_answer():
         if not answer:
             return jsonify({"error": "Answer content required"}), 400
 
-        prompt = f"You are an expert interviewer.\nQuestion:\n{question}\n\nCandidate Answer:\n{answer}\n\nAnalyze the answer honestly."
+        prompt = f"""You are an expert interviewer.
+Question:
+{question}
+
+Candidate Answer:
+{answer}
+
+Analyze the answer honestly. Return JSON with score (0-100), feedback, strengths, improvements, star_method_used, keywords_found, and suggested_answer."""
         
         print("🚀 Routing Metric Analysis...")
         
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "score": types.Schema(type=types.Type.INTEGER),
-                        "feedback": types.Schema(type=types.Type.STRING),
-                        "strengths": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
-                        "improvements": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
-                        "star_method_used": types.Schema(type=types.Type.BOOLEAN),
-                        "keywords_found": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
-                        "suggested_answer": types.Schema(type=types.Type.STRING),
-                    },
-                    required=["score", "feedback", "strengths", "improvements", "star_method_used", "keywords_found", "suggested_answer"],
-                ),
-            ),
-        )
-        return jsonify(json.loads(response.text))
+        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        
+        try:
+            # Try to parse as JSON
+            result = json.loads(response.text)
+            return jsonify(result)
+        except:
+            # Fallback to intelligent scoring
+            fallback = generate_intelligent_fallback(question, answer, role)
+            return jsonify(fallback)
+        
     except Exception as e:
         print(f"❌ AI Analysis Error ({e}). Launching local fallback calculation.")
         fallback = generate_intelligent_fallback(question, answer, role)
@@ -451,7 +439,7 @@ Generate a JSON response with this exact structure:
 
 Make it practical, actionable, and personalized to {role}. Use real YouTube links from channels like NeetCode, takeUforward, Gaurav Sen, FreeCodeCamp."""
 
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt, config=types.GenerateContentConfig(response_mime_type="application/json"))
+        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
         roadmap_data = json.loads(response.text)
         return jsonify(roadmap_data)
         
@@ -514,7 +502,7 @@ Requirements:
 - Format it as a proper business letter."""
         
         print(f"📝 Generating {tone} cover letter for {job_title} at {company_name}")
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
         return jsonify({"coverLetter": response.text})
         
     except Exception as e:
@@ -561,7 +549,7 @@ Requirements:
 
 Write the post directly without any explanation."""
         
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
         return jsonify({"post": response.text})
         
     except Exception as e:
