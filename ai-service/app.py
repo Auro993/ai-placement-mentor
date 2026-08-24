@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import google.generativeai as genai
+from google import genai
 import json
 import re
 import random
@@ -26,8 +26,8 @@ if not GEMINI_API_KEY:
     print("❌ ERROR: GEMINI_API_KEY not found in .env file")
     exit(1)
 
-# Initialize Gemini API
-genai.configure(api_key=GEMINI_API_KEY)
+# Initialize Gemini API Client (NEW google.genai package)
+client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-2.5-flash"
 
 print("✅ Gemini API Client Initialized Successfully!")
@@ -53,6 +53,10 @@ FALLBACK_QUESTIONS = {
     "Full Stack Developer": [
         {"question": "How would you implement JWT authentication in MERN?", "category": "Authentication", "tip": "Discuss tokens and protected routes."},
         {"question": "What is CORS and how do you solve it?", "category": "Web Security", "tip": "Discuss headers and origin policies."}
+    ],
+    "Data Scientist": [
+        {"question": "Explain the bias-variance tradeoff with examples.", "category": "Machine Learning", "tip": "Discuss overfitting and underfitting."},
+        {"question": "How would you handle imbalanced datasets?", "category": "Data Science", "tip": "Discuss SMOTE, undersampling, and cost-sensitive learning."}
     ]
 }
 
@@ -302,18 +306,17 @@ def chat():
         
         # Check if it's placement-related
         elif is_placement_related(message) or len(history) > 0:
-            prompt = f"""You are JobGenie AI Placement Mentor. 
+            prompt = f"""You are JobGenie AI Placement Mentor, an expert career coach.
 
 {context if context else f"Student Question: {message}"}
 
-RULES:
-- Keep response SHORT (max 5-6 sentences)
-- Use bullet points if listing multiple items
-- Be direct, practical, and helpful
-- Provide actionable placement advice
-- Remember previous conversation context
-- If the user asked something before, build on that
-- DO NOT write long paragraphs
+Guidelines:
+- Provide detailed, actionable advice with 3-5 bullet points
+- Include specific examples and practical tips
+- Be encouraging and motivational
+- Focus on placement preparation (resumes, interviews, DSA, companies)
+- Structure your response clearly with bullet points
+- Be specific about what the student should do
 
 Response:"""
             print("📚 Placement-related question detected")
@@ -322,7 +325,7 @@ Response:"""
             return jsonify({"reply": "I'm your Placement Mentor 👨‍🏫 I can only help with placement preparation, resumes, interviews, aptitude, DSA, company preparation, and career guidance. Please ask me something placement-related! 🎯"})
 
         print("🚀 Requesting Chat Output...")
-        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
         return jsonify({"reply": response.text})
 
     except Exception as e:
@@ -330,7 +333,7 @@ Response:"""
         return jsonify({"reply": "Hi! I'm your Placement Mentor. How can I help you with your placement preparation today?"})
 
 # =====================================================
-# OTHER ENDPOINTS
+# INTERVIEW QUESTION GENERATOR - FIXED
 # =====================================================
 @app.route("/api/interview/generate-question", methods=["POST"])
 def generate_question():
@@ -338,24 +341,49 @@ def generate_question():
         data = request.json or {}
         role = data.get("role", "Software Engineer")
         difficulty = data.get("difficulty", "medium")
-        prompt = f"Generate ONE unique {difficulty} interview question for a {role} role. Avoid generic questions, make it practical and technical."
+        
+        prompt = f"""Generate ONE unique {difficulty} interview question for a {role} role.
 
-        print("🚀 Routing Question Generation Engine...")
+IMPORTANT: Return ONLY valid JSON with this exact format:
+{{
+    "question": "The interview question here",
+    "category": "Technical",
+    "tip": "Brief tip for answering this question"
+}}
+
+Do NOT include any other text or explanation outside the JSON."""
         
-        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        print(f"🚀 Generating {difficulty} question for {role}...")
         
-        # Try to parse JSON from response
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        
+        # Try to parse JSON
         try:
-            return jsonify(json.loads(response.text))
+            result = json.loads(response.text)
+            return jsonify(result)
         except:
-            # If not JSON, return as text
-            return jsonify({"question": response.text, "category": "General", "tip": "No tip available"})
+            # Fallback: Try to extract JSON from text
+            import re
+            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                return jsonify(result)
+            else:
+                # Return as plain question with fallback
+                return jsonify({
+                    "question": response.text.strip(),
+                    "category": "General",
+                    "tip": "Focus on demonstrating your problem-solving approach"
+                })
             
     except Exception as e:
-        print(f"❌ AI Generation Error ({e}). Reverting to safe local dataset.")
-        fallback = FALLBACK_QUESTIONS.get(role, FALLBACK_QUESTIONS["Software Engineer"])
+        print(f"❌ AI Generation Error ({e})")
+        fallback = FALLBACK_QUESTIONS.get(role, FALLBACK_QUESTIONS.get("Software Engineer", FALLBACK_QUESTIONS["Software Engineer"]))
         return jsonify(random.choice(fallback))
 
+# =====================================================
+# INTERVIEW ANSWER ANALYZER
+# =====================================================
 @app.route("/api/interview/analyze", methods=["POST"])
 def analyze_answer():
     try:
@@ -378,14 +406,12 @@ Analyze the answer honestly. Return JSON with score (0-100), feedback, strengths
         
         print("🚀 Routing Metric Analysis...")
         
-        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
         
         try:
-            # Try to parse as JSON
             result = json.loads(response.text)
             return jsonify(result)
         except:
-            # Fallback to intelligent scoring
             fallback = generate_intelligent_fallback(question, answer, role)
             return jsonify(fallback)
         
@@ -394,6 +420,9 @@ Analyze the answer honestly. Return JSON with score (0-100), feedback, strengths
         fallback = generate_intelligent_fallback(question, answer, role)
         return jsonify(fallback)
 
+# =====================================================
+# ROADMAP GENERATOR
+# =====================================================
 @app.route("/api/roadmap/generate", methods=["POST"])
 def generate_roadmap():
     try:
@@ -439,7 +468,7 @@ Generate a JSON response with this exact structure:
 
 Make it practical, actionable, and personalized to {role}. Use real YouTube links from channels like NeetCode, takeUforward, Gaurav Sen, FreeCodeCamp."""
 
-        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
         roadmap_data = json.loads(response.text)
         return jsonify(roadmap_data)
         
@@ -469,6 +498,9 @@ Make it practical, actionable, and personalized to {role}. Use real YouTube link
         }
         return jsonify(fallback_roadmap)
 
+# =====================================================
+# COVER LETTER GENERATOR
+# =====================================================
 @app.route("/api/cover-letter/generate", methods=["POST"])
 def generate_cover_letter():
     try:
@@ -502,7 +534,7 @@ Requirements:
 - Format it as a proper business letter."""
         
         print(f"📝 Generating {tone} cover letter for {job_title} at {company_name}")
-        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
         return jsonify({"coverLetter": response.text})
         
     except Exception as e:
@@ -526,6 +558,9 @@ Sincerely,
 {data.get('userName', 'Your Name')}"""
         return jsonify({"coverLetter": fallback_letter})
 
+# =====================================================
+# LINKEDIN POST GENERATOR
+# =====================================================
 @app.route("/api/linkedin/generate-post", methods=["POST"])
 def generate_linkedin_post():
     try:
@@ -549,7 +584,7 @@ Requirements:
 
 Write the post directly without any explanation."""
         
-        response = genai.generate_content(model=MODEL_NAME, contents=prompt)
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
         return jsonify({"post": response.text})
         
     except Exception as e:
