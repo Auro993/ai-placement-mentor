@@ -8,7 +8,7 @@ import os
 from dotenv import load_dotenv
 
 # =====================================================
-# LOAD ENV VARIABLES
+# LOAD ENV VARIABLES 
 # =====================================================
 load_dotenv()
 
